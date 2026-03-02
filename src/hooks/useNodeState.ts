@@ -156,10 +156,12 @@ export function useNodeState() {
     const posTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const chainTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const balanceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const serveCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // ref to always read current connStatus inside setInterval callbacks (avoids stale closure)
     const connStatusRef = useRef<ConnStatus>('disconnected');
     const nodeActiveRef = useRef<boolean>(false);
+    const lastServeCheckRef = useRef<number>(0); // 마지막 검사 시각
 
 
     const addLog = useCallback((icon: string, msg: string, type: LogEntry['type'] = 'default') => {
@@ -340,47 +342,122 @@ export function useNodeState() {
         return arr;
     }, [addLog]);
 
+    // ── 내 청크가 서버에서 실제 사용됐는지 확인 ───────────────────────────────
+    const checkChunkServeActivity = useCallback(async () => {
+        if (!nodeActiveRef.current) return;
+        try {
+            // 내가 저장한 CID 목록 가져오기
+            const myCids = NativeChunkStore.isTauriEnv()
+                ? await NativeChunkStore.listChunkCIDs().catch(() => [])
+                : [];
+
+            // 메모리 캐시에서도 추가
+            for (const cid of localChunkCache.current.keys()) {
+                if (!myCids.includes(cid)) myCids.push(cid);
+            }
+
+            if (myCids.length === 0) return;
+
+            const res = await fetch(`${SERVER_URL}/api/wsn/chunk-access-log`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cids: myCids })
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            if (data.totalServed > 0) {
+                // 이전 검사 이후 새로운 활동만 표시 (lastServeCheckRef 목적)
+                const newActivity = data.recentActivity.filter(
+                    (e: any) => e.ts > lastServeCheckRef.current
+                );
+                if (newActivity.length > 0) {
+                    addLog('🌐', `My chunks served ${newActivity.length} time(s) since last check`, 'success');
+                    for (const entry of newActivity.slice(0, 3)) {
+                        addLog('📤', `Chunk ${entry.cid} → downloaded by ${entry.ip}`, 'info');
+                    }
+                } else {
+                    addLog('📊', `My chunks: ${data.totalServed} total serves (${myCids.length} chunks stored)`, 'info');
+                }
+            } else {
+                addLog('📦', `My ${myCids.length} chunk(s) stored — not yet served externally`, 'info');
+            }
+            lastServeCheckRef.current = Date.now();
+        } catch { /* silent */ }
+    }, [addLog]);
+
     // ── PoS challenge/proof loop ─────────────────────────
-    // Flow: get chunk list → download & pin locally → request challenge
-    //       → server asks for random bytes → read from local cache → submit hex → reward
+    // 개선된 흐름:
+    //   1. 내 로컬 디스크 CID 목록 우선 사용
+    //   2. 서버에 없는 chunk는 먼저 업로드(register)
+    //   3. 그 CID로 challenge 요청 → 로컬 bytes로 응답 → 보상
     const doPosChallenge = useCallback(async () => {
         if (!config.identity || !config.posEnabled || connStatusRef.current !== 'connected') return;
         try {
-            const chunksRes = await fetch(`${SERVER_URL}/api/wsn/chunks`);
-            if (!chunksRes.ok) return;
-            const { cids } = await chunksRes.json() as { cids: string[] };
-            if (!cids || cids.length === 0) {
-                addLog('📦', 'No chunks available for PoS challenge', 'warn');
-                return;
+            // 1. 내 로컬 CID 목록 우선 사용 (디스크 + 메모리 캐시)
+            const myCids: string[] = NativeChunkStore.isTauriEnv()
+                ? await NativeChunkStore.listChunkCIDs().catch(() => [])
+                : [];
+            for (const cid of localChunkCache.current.keys()) {
+                if (!myCids.includes(cid)) myCids.push(cid);
             }
-            addLog('📁', `PoS: requesting challenge (${cids.length} chunks available)`, 'info');
-            const selectedCids = cids.slice(0, Math.min(5, cids.length));
-            // 2. Pin any new chunks we don't have
-            let newlyPinned = 0;
-            for (const cid of cids.slice(0, 3)) {
-                if (!localChunkCache.current.has(cid)) {
-                    const arr = await downloadAndCacheChunk(cid);
-                    if (arr) newlyPinned++;
+
+            // 로컬에 아무것도 없으면 서버에서 다운로드
+            if (myCids.length === 0) {
+                const chunksRes = await fetch(`${SERVER_URL}/api/wsn/chunks`);
+                if (chunksRes.ok) {
+                    const { cids } = await chunksRes.json() as { cids: string[] };
+                    if (!cids || cids.length === 0) {
+                        addLog('📦', 'No chunks available for PoS challenge', 'warn');
+                        return;
+                    }
+                    for (const cid of cids.slice(0, 3)) {
+                        const arr = await downloadAndCacheChunk(cid);
+                        if (arr) myCids.push(cid);
+                    }
+                }
+                if (myCids.length === 0) {
+                    addLog('⚠️', 'No chunks to prove — skipping PoS this cycle', 'warn');
+                    return;
+                }
+                addLog('📥', `Downloaded ${myCids.length} chunk(s) for PoS`, 'info');
+            }
+
+            // 2. 내 CID 중 랜덤 1개 선택
+            const targetCid = myCids[Math.floor(Math.random() * myCids.length)];
+
+            // 3. 로컬 데이터 읽기 (메모리 → 디스크 순)
+            let localData: Uint8Array | null = localChunkCache.current.get(targetCid) ?? null;
+            if (!localData && NativeChunkStore.isTauriEnv()) {
+                const fromDisk = await NativeChunkStore.loadChunk(targetCid);
+                if (fromDisk) {
+                    localData = fromDisk;
+                    localChunkCache.current.set(targetCid, fromDisk);
                 }
             }
-            if (newlyPinned > 0) addLog('📥', `Pinned ${newlyPinned} new chunk(s) to disk`, 'info');
-
-            // 3. Pick one of our locally stored chunks to prove
-            const ourCids = cids.filter((c: string) => localChunkCache.current.has(c));
-            if (ourCids.length === 0) {
-                addLog('⏳', 'Downloading chunks… PoS will run next cycle', 'info');
+            if (!localData) {
+                addLog('⚠️', `Chunk ${targetCid.slice(0, 12)}… not readable, skipping`, 'warn');
                 return;
             }
-            const targetCid = ourCids[Math.floor(Math.random() * ourCids.length)];
 
-            // 4. Sync disk count → stats
+            // 4. 서버에 chunk 없으면 먼저 업로드 (register)
+            const serverHasIt = await fetch(`${SERVER_URL}/api/wsn/chunk/${targetCid}`, { method: 'HEAD' })
+                .then(r => r.ok).catch(() => false);
+            if (!serverHasIt) {
+                addLog('📤', `Uploading chunk to server: ${targetCid.slice(0, 12)}…`, 'info');
+                const form = new FormData();
+                form.append('file', new Blob([localData.buffer as ArrayBuffer], { type: 'application/octet-stream' }), targetCid);
+                form.append('fileId', targetCid);
+                await fetch(`${SERVER_URL}/api/wsn/register-chunk`, { method: 'POST', body: form }).catch(() => { });
+            }
+
+            // 5. Disk 통계 갱신
             const diskCount = NativeChunkStore.isTauriEnv()
-                ? await NativeChunkStore.countChunks().catch(() => localChunkCache.current.size)
-                : localChunkCache.current.size;
+                ? await NativeChunkStore.countChunks().catch(() => myCids.length)
+                : myCids.length;
             const diskStats = NativeChunkStore.isTauriEnv()
                 ? await NativeChunkStore.getStorageStats().catch(() => null)
                 : null;
-
             setStats(prev => ({
                 ...prev,
                 chunksStored: diskCount,
@@ -390,38 +467,35 @@ export function useNodeState() {
             }));
             addLog('📁', `PoS: proving chunk ${targetCid.slice(0, 12)}… (${diskCount} stored on disk)`, 'info');
 
-            // 4. Request challenge from server for this specific chunk
+            // 6. 서버에 challenge 요청
             const challengeRes = await fetch(`${SERVER_URL}/api/storage/challenge`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ identity: config.identity, cid: targetCid })
             });
             if (!challengeRes.ok) {
-                const err = await challengeRes.json().catch(() => ({})) as any;
-                addLog('⚠️', `PoS challenge: ${err.error || challengeRes.status}`, 'warn');
+                const errData = await challengeRes.json().catch(() => ({}) as any);
+                addLog('⚠️', `PoS challenge: ${errData.error || challengeRes.status}`, 'warn');
                 return;
             }
             const { challengeId, cid: challengedCid, offset, length } =
                 await challengeRes.json() as { challengeId: string; cid: string; offset: number; length: number };
 
-            const challengeEntry: PosChallenge = {
-                id: challengeId, cid: challengedCid, status: 'proving', timestamp: Date.now()
-            };
-            setPosChallenges(prev => [challengeEntry, ...prev].slice(0, 50));
+            setPosChallenges(prev => [{ id: challengeId, cid: challengedCid, status: 'proving' as const, timestamp: Date.now() }, ...prev].slice(0, 50));
             addLog('⚡', `Challenge: bytes[${offset}..${offset + length}] of ${challengedCid.slice(0, 12)}…`, 'info');
 
-            // 5. Read exact bytes from LOCAL cache — no downloading allowed!
-            const localData = localChunkCache.current.get(challengedCid);
-            if (!localData || localData.length < offset + length) {
+            // 7. 로컬에서 정확한 bytes 읽기
+            const proofSource = localChunkCache.current.get(challengedCid) ?? localData;
+            if (!proofSource || proofSource.length < offset + length) {
                 setPosChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, status: 'failed' } : c));
                 setStats(prev => ({ ...prev, posFailCount: prev.posFailCount + 1 }));
-                addLog('❌', '❌ PoS FAIL: chunk missing from local storage — no reward!', 'error');
+                addLog('❌', 'PoS FAIL: chunk not in local storage — no reward!', 'error');
                 return;
             }
 
-            // 6. Encode as hex and submit
-            const proofBytes = localData.slice(offset, offset + length);
-            const proofHex = Array.from(proofBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+            // 8. Hex 인코딩 후 제출
+            const proofHex = Array.from(proofSource.slice(offset, offset + length))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
 
             const proofRes = await fetch(`${SERVER_URL}/api/storage/proof`, {
                 method: 'POST',
@@ -430,22 +504,16 @@ export function useNodeState() {
             });
             const proofData = await proofRes.json() as any;
 
-            // Server sends: { success, verified, amount, message } on success (200)
-            //               { success:false, verified:true, error:"...Wait Ns..." } on cooldown (429)
-            //               { success:false, verified:false, error: "..." } on fail (200)
             if (proofData.verified && proofData.amount) {
-                // Full reward granted
                 setPosChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, status: 'success', rewardEarned: proofData.amount } : c));
                 setStats(prev => ({ ...prev, posSuccessCount: prev.posSuccessCount + 1 }));
                 addLog('🏆', `PoS verified! +${proofData.amount} WMT (×${proofData.multiplier ?? 1} stake)`, 'reward');
                 fetchBalance();
             } else if (proofData.verified) {
-                // Proof correct but on cooldown (HTTP 429 or verified=true without amount)
                 const waitMatch = proofData.error?.match(/Wait (\d+)s/);
-                const waitSec = waitMatch ? waitMatch[1] : '?';
                 setPosChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, status: 'success' } : c));
                 setStats(prev => ({ ...prev, posSuccessCount: prev.posSuccessCount + 1 }));
-                addLog('✅', `PoS verified — cooldown ${waitSec}s remaining`, 'success');
+                addLog('✅', `PoS verified — cooldown ${waitMatch ? waitMatch[1] : '?'}s remaining`, 'success');
             } else {
                 setPosChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, status: 'failed' } : c));
                 setStats(prev => ({ ...prev, posFailCount: prev.posFailCount + 1 }));
@@ -505,11 +573,17 @@ export function useNodeState() {
 
         // Balance: every 60s
         balanceTimerRef.current = setInterval(() => fetchBalance(), 60000);
+
+        // Chunk serve activity check: every 5 min
+        setTimeout(() => {
+            checkChunkServeActivity();
+            serveCheckTimerRef.current = setInterval(() => checkChunkServeActivity(), 5 * 60 * 1000);
+        }, 90000); // 90초 후 첫 번째 체크
     }, [config, testConnection, addLog, fetchBalance, fetchChainState, doRelayReward, doPosChallenge]);
 
     // ── Stop node ────────────────────────────────────────────────────
     const stopNode = useCallback(() => {
-        [relayTimerRef, posTimerRef, chainTimerRef, balanceTimerRef].forEach(ref => {
+        [relayTimerRef, posTimerRef, chainTimerRef, balanceTimerRef, serveCheckTimerRef].forEach(ref => {
             if (ref.current) { clearInterval(ref.current as any); ref.current = null; }
         });
         if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
