@@ -1,0 +1,32 @@
+[package]
+name = "worm-node-app"
+version = "1.0.0"
+description = "WORM Protocol Node Mining Client"
+authors = ["WORM Protocol"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.60"
+build = "build.rs"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "1.6", features = [
+  "shell-open",
+  "system-tray",
+  "devtools",
+  "window-hide",
+  "window-show",
+  "window-set-focus",
+  "fs-all",
+  "path-all",
+  "updater"
+] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

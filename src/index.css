@@ -1,0 +1,759 @@
+/* ═══════════════════════════════════════════════════════════
+   WORM Node Mining Dashboard — Dark Terminal Theme
+   Inspired by: CGminer, NiceHash, Ethminer UIs
+   ═══════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Core Palette */
+  --bg-base: #080b10;
+  --bg-surface: #0d1117;
+  --bg-card: #111827;
+  --bg-card-hover: #151e2d;
+  --bg-elevated: #1a2235;
+
+  /* Borders */
+  --border-subtle: #1c2a3a;
+  --border-default: #243044;
+  --border-strong: #2d3f57;
+
+  /* Brand / Mining Green */
+  --green-dim: #064e3b;
+  --green-mid: #059669;
+  --green-bright: #10b981;
+  --green-glow: #34d399;
+  --green-text: #6ee7b7;
+
+  /* Accent Blue */
+  --blue-dim: #1e3a5f;
+  --blue-mid: #2563eb;
+  --blue-bright: #3b82f6;
+  --blue-text: #93c5fd;
+
+  /* Warning Amber */
+  --amber-dim: #451a03;
+  --amber-mid: #d97706;
+  --amber-bright: #f59e0b;
+  --amber-text: #fcd34d;
+
+  /* Error Red */
+  --red-dim: #450a0a;
+  --red-mid: #dc2626;
+  --red-bright: #ef4444;
+  --red-text: #fca5a5;
+
+  /* Purple (WMT) */
+  --purple-dim: #2e1065;
+  --purple-mid: #7c3aed;
+  --purple-bright: #8b5cf6;
+  --purple-text: #c4b5fd;
+
+  /* Cyan (Chain) */
+  --cyan-dim: #0c4a6e;
+  --cyan-mid: #0284c7;
+  --cyan-bright: #06b6d4;
+  --cyan-text: #67e8f9;
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --text-disabled: #334155;
+
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ── Utility ───────────────────────────────────────────── */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.text-green {
+  color: var(--green-bright);
+}
+
+.text-blue {
+  color: var(--blue-bright);
+}
+
+.text-amber {
+  color: var(--amber-bright);
+}
+
+.text-red {
+  color: var(--red-bright);
+}
+
+.text-purple {
+  color: var(--purple-bright);
+}
+
+.text-cyan {
+  color: var(--cyan-bright);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+/* ── Status Dot ────────────────────────────────────────── */
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-green {
+  background: var(--green-bright);
+  box-shadow: 0 0 6px var(--green-bright);
+}
+
+.dot-amber {
+  background: var(--amber-bright);
+  box-shadow: 0 0 6px var(--amber-bright);
+}
+
+.dot-red {
+  background: var(--red-bright);
+  box-shadow: 0 0 6px var(--red-bright);
+}
+
+.dot-blue {
+  background: var(--blue-bright);
+  box-shadow: 0 0 6px var(--blue-bright);
+}
+
+.dot-muted {
+  background: var(--text-muted);
+}
+
+.dot-pulse {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
+
+/* ── Card ──────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: border-color 0.2s;
+}
+
+.card:hover {
+  border-color: var(--border-default);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.card-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ── Badge ──────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.badge-green {
+  background: var(--green-dim);
+  color: var(--green-glow);
+  border: 1px solid var(--green-mid);
+}
+
+.badge-amber {
+  background: var(--amber-dim);
+  color: var(--amber-text);
+  border: 1px solid var(--amber-mid);
+}
+
+.badge-red {
+  background: var(--red-dim);
+  color: var(--red-text);
+  border: 1px solid var(--red-mid);
+}
+
+.badge-blue {
+  background: var(--blue-dim);
+  color: var(--blue-text);
+  border: 1px solid var(--blue-mid);
+}
+
+.badge-purple {
+  background: var(--purple-dim);
+  color: var(--purple-text);
+  border: 1px solid var(--purple-mid);
+}
+
+.badge-muted {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+}
+
+/* ── Button ──────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.02em;
+  user-select: none;
+  outline: none;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--green-mid);
+  color: #fff;
+  border-color: var(--green-bright);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--green-bright);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: var(--red-dim);
+  color: var(--red-text);
+  border-color: var(--red-mid);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--red-mid);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.35);
+}
+
+.btn-secondary {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: transparent;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.btn-lg {
+  padding: 11px 22px;
+  font-size: 13px;
+}
+
+/* ── Input ───────────────────────────────────────────────── */
+.input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--green-mid);
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
+}
+
+.input::placeholder {
+  color: var(--text-disabled);
+}
+
+.input-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* ── Progress bar ──────────────────────────────────────── */
+.progress-bar {
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.progress-green {
+  background: linear-gradient(90deg, var(--green-mid), var(--green-bright));
+}
+
+.progress-blue {
+  background: linear-gradient(90deg, var(--blue-mid), var(--blue-bright));
+}
+
+.progress-amber {
+  background: linear-gradient(90deg, var(--amber-mid), var(--amber-bright));
+}
+
+/* ── Stat Row ──────────────────────────────────────────── */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ── Log Entry ─────────────────────────────────────────── */
+.log-entry {
+  display: flex;
+  gap: var(--space-2);
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(28, 42, 58, 0.5);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  align-items: flex-start;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 10px;
+  padding-top: 1px;
+}
+
+.log-icon {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.log-msg {
+  color: var(--text-secondary);
+  flex: 1;
+  word-break: break-all;
+}
+
+.log-msg.success {
+  color: var(--green-text);
+}
+
+.log-msg.error {
+  color: var(--red-text);
+}
+
+.log-msg.warn {
+  color: var(--amber-text);
+}
+
+.log-msg.info {
+  color: var(--blue-text);
+}
+
+.log-msg.reward {
+  color: var(--purple-text);
+}
+
+/* ── Big Number ─────────────────────────────────────────── */
+.big-number {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.big-number-unit {
+  font-size: 13px;
+  font-weight: 500;
+  margin-left: 4px;
+  color: var(--text-secondary);
+}
+
+/* ── Mining Glow ─────────────────────────────────────────── */
+@keyframes mining-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.15), inset 0 0 15px rgba(16, 185, 129, 0.05);
+  }
+
+  50% {
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.30), inset 0 0 25px rgba(16, 185, 129, 0.10);
+  }
+}
+
+.mining-active {
+  animation: mining-glow 2.5s ease-in-out infinite;
+  border-color: var(--green-mid) !important;
+}
+
+@keyframes reward-flash {
+  0% {
+    background: rgba(139, 92, 246, 0.3);
+  }
+
+  100% {
+    background: transparent;
+  }
+}
+
+.reward-flash {
+  animation: reward-flash 1.2s ease-out forwards;
+}
+
+@keyframes slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in {
+  animation: slide-in-top 0.2s ease-out;
+}
+
+@keyframes count-up {
+  from {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.count-up {
+  animation: count-up 0.3s ease-out;
+}
+
+/* ── Spinner ──────────────────────────────────────────────── */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--green-bright);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── Divider ─────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-4) 0;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────── */
+[data-tooltip] {
+  position: relative;
+  cursor: default;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+  font-family: var(--font-sans);
+}
+
+/* ── Select ──────────────────────────────────────────────── */
+select.input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+select.input option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* ── Chip ────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+/* ── Range Slider (WebKit / Tauri) ────────────────────────── */
+input[type="range"] {
+  -webkit-appearance: auto;
+  appearance: auto;
+  cursor: pointer;
+  height: 6px;
+  outline: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--green-bright);
+  border: 2px solid var(--bg-card);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+  cursor: grab;
+  margin-top: -6px;
+  transition: box-shadow 0.15s;
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.8);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--green-bright);
+  border: 2px solid var(--bg-card);
+  cursor: grab;
+}
+
+/* ── Modal slide-up animation ────────────────────────────── */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Balance float-up indicator ──────────────────────────── */
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  80% {
+    opacity: 0.6;
+    transform: translateY(-8px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}

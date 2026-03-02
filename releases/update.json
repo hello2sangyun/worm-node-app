@@ -1,0 +1,15 @@
+{
+    "version": "1.0.0",
+    "notes": "Initial stable release — WORM Node Mining Dashboard with PoS, relay rewards, and native chunk storage.",
+    "pub_date": "2026-03-02T11:23:00Z",
+    "platforms": {
+        "darwin-x86_64": {
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTV1JKN1pJajBWUUs3dFFxdys0RDdhcG0ya1JGcnQ5ZWtteTZUaFRKaWZJZEFmQ3cyY0JjYWlwVGlNdUgxeWpScUNzRnlQM1VqNjcwN3lzU2tnYnMzQnV3ckdSeWI0TEFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcyNDQ3MDIyCWZpbGU6V09STSBOb2RlLmFwcC50YXIuZ3oKTFo5WE5rN3B4UENDZE1wb2krS1R2K21nNm9Nb2FLU283NVZudVpKUDJLZlJYMDlNVUlPcGNKQnFQVnB6NEtDa1oxcW0ybnJIbTg4WlBRR0x3dGZKQnc9PQo=",
+            "url": "https://github.com/hello2sangyun/worm-node-app/releases/download/v1.0.0/WORM.Node_1.0.0_x64.app.tar.gz"
+        },
+        "darwin-aarch64": {
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTV1JKN1pJajBWUUs3dFFxdys0RDdhcG0ya1JGcnQ5ZWtteTZUaFRKaWZJZEFmQ3cyY0JjYWlwVGlNdUgxeWpScUNzRnlQM1VqNjcwN3lzU2tnYnMzQnV3ckdSeWI0TEFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcyNDQ3MDIyCWZpbGU6V09STSBOb2RlLmFwcC50YXIuZ3oKTFo5WE5rN3B4UENDZE1wb2krS1R2K21nNm9Nb2FLU283NVZudVpKUDJLZlJYMDlNVUlPcGNKQnFQVnB6NEtDa1oxcW0ybnJIbTg4WlBRR0x3dGZKQnc9PQo=",
+            "url": "https://github.com/hello2sangyun/worm-node-app/releases/download/v1.0.0/WORM.Node_1.0.0_x64.app.tar.gz"
+        }
+    }
+}
