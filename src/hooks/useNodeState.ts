@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { KeyPairBundle } from '../components/SetupScreen';
 import * as NativeChunkStore from '../utils/NativeChunkStore';
+import { NodeProviderClient } from '../utils/NodeProviderClient';
 
 export const SERVER_URL = 'https://worm-protocol-production.up.railway.app';
 
@@ -158,6 +159,7 @@ export function useNodeState() {
     const balanceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const serveCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const providerClientRef = useRef<NodeProviderClient | null>(null);
     // ref to always read current connStatus inside setInterval callbacks (avoids stale closure)
     const connStatusRef = useRef<ConnStatus>('disconnected');
     const nodeActiveRef = useRef<boolean>(false);
@@ -579,6 +581,14 @@ export function useNodeState() {
             checkChunkServeActivity();
             serveCheckTimerRef.current = setInterval(() => checkChunkServeActivity(), 5 * 60 * 1000);
         }, 90000); // 90초 후 첫 번째 체크
+
+        // Node Provider: P2P chunk 서빙 시작 (진짜 탈중앙화!)
+        if (NativeChunkStore.isTauriEnv()) {
+            const provider = new NodeProviderClient(config.identity, addLog);
+            providerClientRef.current = provider;
+            // 노드 연결 완료 후 5초 뒤 Provider 시작 (Socket 안정화 대기)
+            setTimeout(() => provider.start(), 5000);
+        }
     }, [config, testConnection, addLog, fetchBalance, fetchChainState, doRelayReward, doPosChallenge]);
 
     // ── Stop node ────────────────────────────────────────────────────
@@ -587,6 +597,11 @@ export function useNodeState() {
             if (ref.current) { clearInterval(ref.current as any); ref.current = null; }
         });
         if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
+        // Provider 종료
+        if (providerClientRef.current) {
+            providerClientRef.current.stop();
+            providerClientRef.current = null;
+        }
         setNodeActive(false);
         setConnStatus('disconnected');
         addLog('⏹️', 'Node stopped by user', 'warn');
