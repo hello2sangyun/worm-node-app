@@ -136,7 +136,6 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
-          updaterJsonPath: releases/update.json
 
   # ── Step 3: update.json을 main 브랜치에 커밋 (worm.online 자동 반영) ────────
   update-json:
