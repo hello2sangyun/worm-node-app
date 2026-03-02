@@ -157,8 +157,21 @@ export function Header({
         <header style={dragStyle as React.CSSProperties}>
             {/* Logo */}
             <Icon.Logo size={20} color="var(--green-bright)" style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em', flexShrink: 0 }}>
-                WORM Node
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                    WORM Node
+                </span>
+                <span style={{
+                    fontSize: 9, fontWeight: 600,
+                    color: 'var(--green-bright)',
+                    background: 'rgba(16,185,129,0.1)',
+                    border: '1px solid rgba(16,185,129,0.25)',
+                    borderRadius: 3, padding: '1px 4px',
+                    letterSpacing: '0.02em',
+                    fontFamily: 'var(--font-mono)',
+                }}>
+                    v1.1.0
+                </span>
             </div>
 
             {/* Identity chip */}
