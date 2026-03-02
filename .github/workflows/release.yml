@@ -1,0 +1,66 @@
+name: WORM Node Release
+
+on:
+  push:
+    tags:
+      - 'v*'           # v1.1.0, v1.2.0 등 태그 push 시 자동 실행
+  workflow_dispatch:   # GitHub UI에서 수동 실행도 가능
+
+jobs:
+  release:
+    permissions:
+      contents: write  # GitHub Release 생성 권한
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+          - platform: windows-latest
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'WORM Node ${{ github.ref_name }}'
+          releaseBody: |
+            ## WORM Node ${{ github.ref_name }}
+
+            기존 사용자는 앱 실행 시 자동 업데이트 알림을 받습니다.
+
+            ### 설치 방법 (신규)
+            - **macOS (Apple Silicon)**: `WORM.Node_*_aarch64.dmg`
+            - **macOS (Intel)**: `WORM.Node_*_x64.dmg`
+            - **Windows**: `WORM.Node_*_x64-setup.exe`
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+          updaterJsonPath: releases/update.json
