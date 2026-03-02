@@ -1,103 +1,103 @@
 {
-    "build": {
-        "beforeBuildCommand": "npm run build",
-        "beforeDevCommand": "npm run dev",
-        "devPath": "http://localhost:1421",
-        "distDir": "../dist"
-    },
-    "package": {
-        "productName": "WORM Node",
-        "version": "1.1.0"
-    },
-    "tauri": {
-        "allowlist": {
-            "all": false,
-            "shell": {
-                "all": false,
-                "open": true
-            },
-            "window": {
-                "all": false,
-                "hide": true,
-                "show": true,
-                "setFocus": true
-            },
-            "fs": {
-                "all": true,
-                "scope": [
-                    "$APPDATA/**",
-                    "$APPDATA"
-                ]
-            },
-            "path": {
-                "all": true
-            }
-        },
-        "bundle": {
-            "active": true,
-            "category": "Utility",
-            "copyright": "WORM Protocol",
-            "deb": {
-                "depends": []
-            },
-            "externalBin": [],
-            "icon": [
-                "icons/32x32.png",
-                "icons/128x128.png",
-                "icons/128x128@2x.png",
-                "icons/icon.icns",
-                "icons/icon.ico"
-            ],
-            "identifier": "com.worm.node-app",
-            "longDescription": "WORM Protocol Decentralized Node — Mining, Storage, and Relay Participation Dashboard",
-            "macOS": {
-                "entitlements": null,
-                "exceptionDomain": "worm-protocol-production.up.railway.app",
-                "frameworks": [],
-                "signingIdentity": null,
-                "minimumSystemVersion": "10.15"
-            },
-            "resources": [],
-            "shortDescription": "WORM Node Mining Client",
-            "targets": "all",
-            "windows": {
-                "certificateThumbprint": null,
-                "digestAlgorithm": "sha256",
-                "webviewInstallMode": {
-                    "type": "downloadBootstrapper"
-                }
-            }
-        },
-        "security": {
-            "csp": "default-src 'self'; connect-src 'self' https://worm-protocol-production.up.railway.app wss://worm-protocol-production.up.railway.app https://fonts.googleapis.com https://fonts.gstatic.com https://api.github.com https://github.com https://objects.githubusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
-        },
-        "systemTray": {
-            "iconPath": "icons/icon.png",
-            "iconAsTemplate": true,
-            "menuOnLeftClick": false
-        },
-        "updater": {
-            "active": true,
-            "dialog": false,
-            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQwMTUzRDIyRDk5RTQ0OTYKUldTV1JKN1pJajBWUUpNWWVaQ2UwM0c2NkZMbTM1SDV5bU5HbWJBaWVNMXdoSjRoTkg2TXE1N0MK",
-            "endpoints": [
-                "https://raw.githubusercontent.com/hello2sangyun/worm-node-app/main/releases/update.json"
-            ]
-        },
-        "windows": [
-            {
-                "fullscreen": false,
-                "height": 700,
-                "width": 1100,
-                "minHeight": 600,
-                "minWidth": 900,
-                "resizable": true,
-                "title": "WORM Node — Mining Dashboard",
-                "decorations": true,
-                "transparent": false,
-                "center": true,
-                "visible": true
-            }
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devPath": "http://localhost:1421",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "WORM Node",
+    "version": "1.0.1"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true
+      },
+      "window": {
+        "all": false,
+        "hide": true,
+        "show": true,
+        "setFocus": true
+      },
+      "fs": {
+        "all": true,
+        "scope": [
+          "$APPDATA/**",
+          "$APPDATA"
         ]
-    }
+      },
+      "path": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Utility",
+      "copyright": "WORM Protocol",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "identifier": "com.worm.node-app",
+      "longDescription": "WORM Protocol Decentralized Node — Mining, Storage, and Relay Participation Dashboard",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "worm-protocol-production.up.railway.app",
+        "frameworks": [],
+        "signingIdentity": null,
+        "minimumSystemVersion": "10.15"
+      },
+      "resources": [],
+      "shortDescription": "WORM Node Mining Client",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "webviewInstallMode": {
+          "type": "downloadBootstrapper"
+        }
+      }
+    },
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' https://worm-protocol-production.up.railway.app wss://worm-protocol-production.up.railway.app https://fonts.googleapis.com https://fonts.gstatic.com https://api.github.com https://github.com https://objects.githubusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+    },
+    "systemTray": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false
+    },
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQwMTUzRDIyRDk5RTQ0OTYKUldTV1JKN1pJajBWUUpNWWVaQ2UwM0c2NkZMbTM1SDV5bU5HbWJBaWVNMXdoSjRoTkg2TXE1N0MK",
+      "endpoints": [
+        "https://raw.githubusercontent.com/hello2sangyun/worm-node-app/main/releases/update.json"
+      ]
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 700,
+        "width": 1100,
+        "minHeight": 600,
+        "minWidth": 900,
+        "resizable": true,
+        "title": "WORM Node — Mining Dashboard",
+        "decorations": true,
+        "transparent": false,
+        "center": true,
+        "visible": true
+      }
+    ]
+  }
 }
