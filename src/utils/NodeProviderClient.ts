@@ -15,7 +15,20 @@ import * as NativeChunkStore from './NativeChunkStore';
 export const SERVER_URL = 'https://worm-protocol-production.up.railway.app';
 
 const IDLE_SYNC_INTERVAL_MS = 3 * 60 * 1000; // 3분
-const MAX_CHUNKS_PER_CYCLE = 10;              // 한 사이클에 최대 10개
+const NUM_SLOTS = 10;   // 총 슬롯 수 (노드들이 나눠 담당)
+const REPLICA_SLOTS = 2; // 각 노드가 담당할 슬롯 수 (10분의 2 = 약 20% 저장)
+
+/**
+ * 문자열을 0~(range-1) 사이 슬롯으로 해시 (간단한 djb2 변형)
+ */
+function hashToSlot(str: string, range: number): number {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
+        hash = hash >>> 0; // unsigned 32bit
+    }
+    return hash % range;
+}
 
 export class NodeProviderClient {
     private socket: Socket | null = null;
@@ -121,11 +134,24 @@ export class NodeProviderClient {
     }
 
     /**
-     * [V59] Idle Sync Daemon
-     * 3분마다 서버의 전체 청크 목록을 조회하고, 내가 없는 청크를 최대 10개씩 자동으로 당겨옴.
-     * 노드가 대기 중일 때 자연스럽게 청크 수와 보상 기회를 늘립니다.
+     * [V59] Partial Replication Idle Sync Daemon
+     *
+     * 각 노드는 자신의 nodeId 해시 기반으로 "담당 슬롯"을 배정받습니다.
+     * 서버의 청크 목록 중 자신의 슬롯에 해당하는 청크만 Pull해서 저장합니다.
+     * (전체의 약 20%, REPLICA_SLOTS=2 / NUM_SLOTS=10)
+     *
+     * 서버는 항상 100% 백업을 유지하므로 다운로드 신뢰성은 보장됩니다.
+     * 노드 수가 늘수록 네트워크 총 분산 용량이 자연스럽게 증가합니다.
      */
     private startIdleSync(): void {
+        // 내 nodeId → 담당 슬롯 번호 계산 (고정, 재시작해도 동일)
+        const mySlot = hashToSlot(this.identity, NUM_SLOTS);
+        const mySlots = new Set<number>();
+        for (let i = 0; i < REPLICA_SLOTS; i++) {
+            mySlots.add((mySlot + i) % NUM_SLOTS);
+        }
+        this.onLog('📌', `Partial Sync slots: ${[...mySlots].join(', ')} / ${NUM_SLOTS} (담당 ~${Math.round(REPLICA_SLOTS / NUM_SLOTS * 100)}%)`, 'info');
+
         const runSync = async () => {
             try {
                 // 1. 서버 전체 청크 목록 조회
@@ -135,21 +161,24 @@ export class NodeProviderClient {
                 const serverCids: string[] = data.cids || [];
                 if (serverCids.length === 0) return;
 
-                // 2. 내 로컬 CID와 비교 → 누락 목록
-                const localCids = new Set(await NativeChunkStore.listChunkCIDs());
-                const missing = serverCids.filter(cid => !localCids.has(cid));
+                // 2. 내 슬롯에 해당하는 CID만 필터링
+                const myCids = serverCids.filter(cid => mySlots.has(hashToSlot(cid, NUM_SLOTS)));
 
-                if (missing.length === 0) {
-                    console.log('[IDLE-SYNC] Up to date — no missing chunks.');
+                // 3. 이미 가진 것 제외
+                const localCids = new Set(await NativeChunkStore.listChunkCIDs());
+                const toPull = myCids.filter(cid => !localCids.has(cid));
+
+                if (toPull.length === 0) {
+                    console.log(`[IDLE-SYNC] Slot ${[...mySlots].join('/')} up to date (${myCids.length} assigned, ${localCids.size} stored).`);
                     return;
                 }
 
-                // 3. 무작위로 최대 10개 선택해서 Pull
-                const toPull = missing.sort(() => Math.random() - 0.5).slice(0, MAX_CHUNKS_PER_CYCLE);
-                this.onLog('🔄', `Idle Sync: ${missing.length} missing — pulling ${toPull.length}…`, 'info');
+                // 4. 최대 10개씩 Pull (부담 분산)
+                const batch = toPull.slice(0, 10);
+                this.onLog('🔄', `Partial Sync: pulling ${batch.length}/${toPull.length} assigned chunks (slot ${[...mySlots].join('/')})…`, 'info');
 
                 let pulled = 0;
-                for (const cid of toPull) {
+                for (const cid of batch) {
                     try {
                         const chunkRes = await fetch(`${SERVER_URL}/api/wsn/chunk/${encodeURIComponent(cid)}`);
                         if (!chunkRes.ok) continue;
@@ -157,25 +186,17 @@ export class NodeProviderClient {
                         if (buf.byteLength === 0) continue;
 
                         const { saved } = await NativeChunkStore.saveChunk(cid, new Uint8Array(buf));
-                        if (saved) {
-                            pulled++;
-                            this.syncedCount++;
-                        }
-                        // 요청 버스트 방지
+                        if (saved) { pulled++; this.syncedCount++; }
                         await new Promise(r => setTimeout(r, 200));
                     } catch (_) { /* 실패 시 다음 사이클에 재시도 */ }
                 }
 
                 if (pulled > 0) {
-                    this.onLog('✅', `Idle Sync: +${pulled} chunks saved (session: ${this.syncedCount} total)`, 'success');
-                    // 새 CID 서버에 다시 등록
+                    this.onLog('✅', `Partial Sync: +${pulled} chunks (session: ${this.syncedCount})`, 'success');
                     await this.registerCIDs();
-                    // [V59] UI 즉시 갱신 콜백
                     if (this.onChunksSynced) {
                         const newStats = await NativeChunkStore.getStorageStats().catch(() => null);
-                        if (newStats) {
-                            this.onChunksSynced(newStats.count, newStats.totalBytes / (1024 * 1024));
-                        }
+                        if (newStats) this.onChunksSynced(newStats.count, newStats.totalBytes / (1024 * 1024));
                     }
                 }
             } catch (e) {
@@ -183,10 +204,10 @@ export class NodeProviderClient {
             }
         };
 
-        // 1분 후 첫 실행 (노드 안정화 대기), 이후 3분마다
+        // 1분 후 첫 실행, 이후 3분마다
         this.idleSyncFirstRun = setTimeout(runSync, 60 * 1000);
         this.idleSyncTimer = setInterval(runSync, IDLE_SYNC_INTERVAL_MS);
-        this.onLog('🟢', 'Idle Sync started (3min interval, max 10 chunks/cycle)', 'info');
+        this.onLog('🟢', `Partial Sync daemon started (slots ${[...mySlots].join('/')}/${NUM_SLOTS}, ~${Math.round(REPLICA_SLOTS / NUM_SLOTS * 100)}% of chunks)`, 'info');
     }
 
     getServedCount(): number { return this.servedCount; }
