@@ -8,4 +8,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <App />
     </React.StrictMode>
 );
-// test: trigger auto-release Mon Mar  2 19:31:05 CET 2026
+
+// test v2: Mon Mar  2 19:38:18 CET 2026
