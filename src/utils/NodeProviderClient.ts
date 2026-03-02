@@ -27,10 +27,16 @@ export class NodeProviderClient {
     private servedCount = 0;
     private syncedCount = 0;
     private onLog: (icon: string, msg: string, type?: 'success' | 'error' | 'warn' | 'info' | 'reward' | 'default') => void;
+    private onChunksSynced?: (count: number, totalMB: number) => void; // [V59] Live UI update callback
 
-    constructor(identity: string, onLog: (icon: string, msg: string, type?: 'success' | 'error' | 'warn' | 'info' | 'reward' | 'default') => void) {
+    constructor(
+        identity: string,
+        onLog: (icon: string, msg: string, type?: 'success' | 'error' | 'warn' | 'info' | 'reward' | 'default') => void,
+        onChunksSynced?: (count: number, totalMB: number) => void
+    ) {
         this.identity = identity;
         this.onLog = onLog;
+        this.onChunksSynced = onChunksSynced;
     }
 
     async start(): Promise<void> {
@@ -164,6 +170,13 @@ export class NodeProviderClient {
                     this.onLog('✅', `Idle Sync: +${pulled} chunks saved (session: ${this.syncedCount} total)`, 'success');
                     // 새 CID 서버에 다시 등록
                     await this.registerCIDs();
+                    // [V59] UI 즉시 갱신 콜백
+                    if (this.onChunksSynced) {
+                        const newStats = await NativeChunkStore.getStorageStats().catch(() => null);
+                        if (newStats) {
+                            this.onChunksSynced(newStats.count, newStats.totalBytes / (1024 * 1024));
+                        }
+                    }
                 }
             } catch (e) {
                 console.warn('[IDLE-SYNC] Sync cycle error:', e);

@@ -584,7 +584,14 @@ export function useNodeState() {
 
         // Node Provider: P2P chunk 서빙 시작 (진짜 탈중앙화!)
         if (NativeChunkStore.isTauriEnv()) {
-            const provider = new NodeProviderClient(config.identity, addLog);
+            const provider = new NodeProviderClient(
+                config.identity,
+                addLog,
+                // [V59] Idle Sync 완료 시 UI 즉시 갱신
+                (count, totalMB) => {
+                    setStats(prev => ({ ...prev, chunksStored: count, storageUsedMB: totalMB }));
+                }
+            );
             providerClientRef.current = provider;
             // 노드 연결 완료 후 5초 뒤 Provider 시작 (Socket 안정화 대기)
             setTimeout(() => provider.start(), 5000);
