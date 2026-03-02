@@ -72,10 +72,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json src-tauri/tauri.conf.json
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          # 먼저 브랜치 push, 그 다음 태그 별도 push (--follow-tags 가 blocked 되는 경우 방지)
+          git push origin main
           git tag ${{ steps.bump.outputs.tag_name }}
-          git push origin main --follow-tags
+          git push origin ${{ steps.bump.outputs.tag_name }}
 
-  # ── Step 2: 빌드 + 릴리즈 (macOS Intel / Apple Silicon / Windows) ───────────
+  # ── Step 2: 빌드 + 릴리즈 (macOS Intel / Apple Silicon) ───────────
   release:
     needs: bump-version
     permissions:
@@ -95,10 +97,11 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout (bumped version)
+      - name: Checkout (main after bump)
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump-version.outputs.tag_name }}
+          ref: main          # 태그가 아닌 main 브랜치 최신 커밋으로 체크아웃
+          fetch-depth: 0    # 태그 이력 포함
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
