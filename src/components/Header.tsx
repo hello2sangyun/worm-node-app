@@ -170,7 +170,7 @@ export function Header({
                     letterSpacing: '0.02em',
                     fontFamily: 'var(--font-mono)',
                 }}>
-                    v1.1.0
+                    v{__APP_VERSION__}
                 </span>
             </div>
 

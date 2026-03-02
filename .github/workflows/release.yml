@@ -1,15 +1,85 @@
-name: WORM Node Release
+name: WORM Node Auto Release
 
+# main 브랜치에 push할 때마다 자동으로 버전 범프 + 빌드 + 릴리즈
 on:
   push:
-    tags:
-      - 'v*'           # v1.1.0, v1.2.0 등 태그 push 시 자동 실행
-  workflow_dispatch:   # GitHub UI에서 수동 실행도 가능
+    branches:
+      - main
+    paths-ignore:
+      - 'releases/**'      # update.json 업데이트로 인한 무한루프 방지
+      - '.github/**'
+      - '*.md'
+  workflow_dispatch:        # GitHub UI에서 수동 실행
 
 jobs:
-  release:
+  # ── Step 1: 버전 범프 (patch: 1.1.0 → 1.1.1) ──────────────────────────────
+  bump-version:
+    runs-on: ubuntu-latest
     permissions:
-      contents: write  # GitHub Release 생성 권한
+      contents: write
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      tag_name: ${{ steps.bump.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          # package.json 현재 버전 읽기
+          CURRENT=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT"
+
+          # patch 버전 +1: 1.1.0 → 1.1.1
+          IFS='.' read -ra PARTS <<< "$CURRENT"
+          MAJOR=${PARTS[0]}
+          MINOR=${PARTS[1]}
+          PATCH=$((${PARTS[2]} + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New version: $NEW_VERSION"
+
+          # package.json 업데이트
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # tauri.conf.json 업데이트
+          node -e "
+            const fs = require('fs');
+            const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json'));
+            conf.package.version = '$NEW_VERSION';
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+          "
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json src-tauri/tauri.conf.json
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git tag ${{ steps.bump.outputs.tag_name }}
+          git push origin main --follow-tags
+
+  # ── Step 2: 빌드 + 릴리즈 (macOS Intel / Apple Silicon / Windows) ───────────
+  release:
+    needs: bump-version
+    permissions:
+      contents: write
 
     strategy:
       fail-fast: false
@@ -17,21 +87,23 @@ jobs:
         include:
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
+            label: 'Apple Silicon (M1/M2/M3)'
           - platform: macos-latest
             args: '--target x86_64-apple-darwin'
-          - platform: windows-latest
-            args: ''
+            label: 'Intel Mac'
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout (bumped version)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag_name }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -49,18 +121,64 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'WORM Node ${{ github.ref_name }}'
+          tagName: ${{ needs.bump-version.outputs.tag_name }}
+          releaseName: 'WORM Node ${{ needs.bump-version.outputs.tag_name }}'
           releaseBody: |
-            ## WORM Node ${{ github.ref_name }}
+            ## WORM Node ${{ needs.bump-version.outputs.tag_name }}
 
-            기존 사용자는 앱 실행 시 자동 업데이트 알림을 받습니다.
+            **기존 사용자**: 앱 실행 시 자동으로 업데이트 알림이 표시됩니다. "지금 업데이트" 버튼을 누르면 즉시 적용됩니다.
 
-            ### 설치 방법 (신규)
-            - **macOS (Apple Silicon)**: `WORM.Node_*_aarch64.dmg`
+            ### 신규 설치
+            - **macOS (Apple Silicon M1/M2/M3)**: `WORM.Node_*_aarch64.dmg`
             - **macOS (Intel)**: `WORM.Node_*_x64.dmg`
-            - **Windows**: `WORM.Node_*_x64-setup.exe`
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
           updaterJsonPath: releases/update.json
+
+  # ── Step 3: update.json을 main 브랜치에 커밋 (worm.online 자동 반영) ────────
+  update-json:
+    needs: [bump-version, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+          fetch-depth: 0
+
+      - name: Pull latest (including version bump commit)
+        run: git pull origin main
+
+      - name: Download update.json from Release assets
+        run: |
+          TAG=${{ needs.bump-version.outputs.tag_name }}
+          VERSION=${{ needs.bump-version.outputs.new_version }}
+
+          # GitHub API에서 릴리즈 에셋 URL 가져오기
+          curl -L \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+            -o release_info.json
+
+          # update.json이 releases/ 폴더에 자동 생성됨 (tauri-action이 처리)
+          # 버전만 확인해서 커밋
+          echo "Release info fetched for $TAG"
+
+      - name: Commit update.json if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # releases/update.json이 변경됐으면 커밋
+          if git diff --quiet releases/update.json 2>/dev/null; then
+            echo "update.json unchanged, skipping commit"
+          else
+            git add releases/update.json
+            git commit -m "chore: update releases/update.json for ${{ needs.bump-version.outputs.tag_name }} [skip ci]"
+            git push origin main
+          fi
