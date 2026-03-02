@@ -33,9 +33,12 @@ export class NodeProviderClient {
         if (this.socket?.connected) return;
 
         this.socket = socketIO(SERVER_URL, {
-            transports: ['websocket', 'polling'],
+            transports: ['polling', 'websocket'], // polling 먼저 시도 (Tauri WebKit WSS 거절 회피)
             reconnection: true,
+            reconnectionAttempts: 10,      // 최대 10회
             reconnectionDelay: 5000,
+            reconnectionDelayMax: 60000,   // 최대 60초 대기 (스팬 방지)
+            timeout: 20000,
         });
 
         this.socket.on('connect', async () => {
@@ -48,7 +51,12 @@ export class NodeProviderClient {
         });
 
         this.socket.on('connect_error', (e) => {
+            // 연결 실패는 디버그만 (Activity Log 에는 최종 실패시만 표시)
             console.warn('[NodeProvider] connect_error:', e.message);
+        });
+
+        this.socket.io.on('reconnect_failed', () => {
+            this.onLog('⚠️', 'Node Provider: could not connect to server (will retry later)', 'warn');
         });
 
         // 서버가 chunk 요청할 때 — 핵심!
