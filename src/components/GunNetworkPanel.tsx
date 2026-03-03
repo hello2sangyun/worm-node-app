@@ -10,93 +10,103 @@ function formatBytes(bytes: number): string {
 
 function timeAgo(ts: number): string {
     const s = Math.floor((Date.now() - ts) / 1000);
-    if (s < 60) return `${s}s ago`;
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-    return `${Math.floor(s / 3600)}h ago`;
+    if (s < 10) return 'just now';
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.floor(s / 60)}m`;
+    return `${Math.floor(s / 3600)}h`;
 }
 
-const PLAN_COLORS: Record<string, string> = {
-    PRO: 'var(--purple-bright)',
-    PREMIUM: 'var(--amber-bright)',
-    FREE: 'var(--text-muted)',
-    VAULT: 'var(--green-bright)',
-};
+// Deterministic hash from identity string (djb2 variant)
+function identityHash(str: string): number {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) {
+        h = Math.imul(h, 31) ^ str.charCodeAt(i);
+    }
+    return h >>> 0;
+}
 
-function PeerCard({ peer }: { peer: PeerProfile }) {
-    const initials = peer.displayName.slice(0, 2).toUpperCase();
-    const planColor = PLAN_COLORS[peer.plan?.toUpperCase()] || 'var(--text-muted)';
+function toNodeId(id: string): string {
+    return identityHash(id).toString(16).padStart(8, '0');
+}
+
+// Derives a unique accent color from the hash (used as left border only)
+function toAccentColor(id: string): string {
+    const h = identityHash(id);
+    const hue = h % 360;
+    return `hsl(${hue}, 60%, 55%)`;
+}
+
+// "Activity level" based on data bytes — proxy for network participation
+function activityTag(bytes: number): { label: string; color: string } {
+    if (bytes > 50_000) return { label: 'HIGH', color: 'var(--green-bright)' };
+    if (bytes > 5_000) return { label: 'MED', color: 'var(--amber-bright)' };
+    return { label: 'LOW', color: 'var(--text-disabled)' };
+}
+
+function PeerRow({ peer }: { peer: PeerProfile }) {
+    const nodeId = toNodeId(peer.id);
+    const accent = toAccentColor(peer.id);
+    const isOnline = (Date.now() - peer.lastSeen) < 60_000;
+    const activity = activityTag(peer.dataBytes);
+    // Second derived hash for checksum display (XOR shifted)
+    const checksum = ((identityHash(peer.id) ^ 0xdeadbeef) >>> 0).toString(16).padStart(8, '0');
 
     return (
         <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '7px 10px',
-            borderRadius: 8,
+            display: 'grid',
+            gridTemplateColumns: '3px 1fr auto',
+            alignItems: 'center',
+            gap: 10,
+            padding: '6px 10px 6px 0',
+            borderRadius: 6,
             background: 'var(--bg-elevated)',
             border: '1px solid var(--border-subtle)',
-            transition: 'border-color 0.2s',
-            minWidth: 0,
+            overflow: 'hidden',
         }}>
-            {/* Avatar */}
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-                {peer.avatarUrl ? (
-                    <img
-                        src={peer.avatarUrl}
-                        alt={peer.displayName}
-                        style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--border-default)' }}
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                ) : (
-                    <div style={{
-                        width: 34, height: 34, borderRadius: '50%',
-                        background: 'linear-gradient(135deg, var(--green-dim), var(--blue-dim))',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 12, fontWeight: 700, color: 'var(--text-primary)',
-                        border: '1.5px solid var(--border-default)',
+            {/* Left accent bar — derived from node hash, replaces avatar */}
+            <div style={{ width: 3, alignSelf: 'stretch', borderRadius: '3px 0 0 3px', background: accent }} />
+
+            {/* Node identity info */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                {/* Top row: node ID + status dot */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                        fontSize: 11, fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        fontFamily: 'var(--font-mono)',
                         letterSpacing: 0.5,
                     }}>
-                        {initials}
-                    </div>
-                )}
-                {/* Online indicator */}
-                <span style={{
-                    position: 'absolute', bottom: 0, right: 0,
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: 'var(--green-bright)',
-                    border: '1.5px solid var(--bg-elevated)',
-                }} />
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {peer.displayName !== peer.wnsName ? peer.displayName : peer.wnsName.split('.')[0]}
+                        {nodeId.slice(0, 4)}·{nodeId.slice(4)}
                     </span>
-                    <span style={{ fontSize: 9, color: planColor, fontWeight: 700, letterSpacing: 0.5, flexShrink: 0 }}>
-                        {peer.plan?.toUpperCase()}
-                    </span>
+                    <span style={{
+                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                        background: isOnline ? 'var(--green-bright)' : 'var(--border-default)',
+                        boxShadow: isOnline ? '0 0 4px var(--green-bright)' : 'none',
+                    }} />
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {peer.wnsName}
+                {/* Bottom row: checksum + activity tag */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 9, color: 'var(--text-disabled)', fontFamily: 'var(--font-mono)' }}>
+                        crc·{checksum.slice(0, 6)}
+                    </span>
+                    <span style={{
+                        fontSize: 8, fontWeight: 700, letterSpacing: 0.6,
+                        color: activity.color, padding: '1px 4px',
+                        border: `1px solid ${activity.color}`,
+                        borderRadius: 3, opacity: 0.85,
+                    }}>
+                        {activity.label}
+                    </span>
                 </div>
             </div>
 
-            {/* Stats */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    {peer.friendCount > 0 && (
-                        <span style={{ fontSize: 10, color: 'var(--text-secondary)' }} title="Friends">
-                            👥 {peer.friendCount}
-                        </span>
-                    )}
-                    {peer.msgCount > 0 && (
-                        <span style={{ fontSize: 10, color: 'var(--text-secondary)' }} title="Messages in inbox">
-                            ✉️ {peer.msgCount}
-                        </span>
-                    )}
-                </div>
-                <span style={{ fontSize: 9, color: 'var(--text-disabled)', fontFamily: 'var(--font-mono)' }}>
-                    {formatBytes(peer.dataBytes)} · {timeAgo(peer.lastSeen)}
+            {/* Right: bytes + time */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, paddingRight: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                    {formatBytes(peer.dataBytes)}
+                </span>
+                <span style={{ fontSize: 9, color: 'var(--text-disabled)' }}>
+                    {timeAgo(peer.lastSeen)}
                 </span>
             </div>
         </div>
@@ -119,9 +129,11 @@ export function GunNetworkPanel({ nodeActive }: Props) {
         return unsub;
     }, []);
 
+    const onlineCount = profiles.filter(p => (Date.now() - p.lastSeen) < 60_000).length;
+
     return (
         <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 0, padding: 0, overflow: 'hidden' }}>
-            {/* Header */}
+            {/* ── Header ── */}
             <div className="card-header" style={{ padding: '10px 14px', flexShrink: 0 }}>
                 <span style={{ fontSize: 13 }}>🌐</span>
                 <span className="card-title">GunDB Network</span>
@@ -129,42 +141,52 @@ export function GunNetworkPanel({ nodeActive }: Props) {
                     {nodeActive && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--green-bright)' }}>
                             <span className="dot dot-green dot-pulse" style={{ width: 6, height: 6 }} />
-                            SYNCING
+                            LIVE
                         </span>
                     )}
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{profiles.length} peers</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {onlineCount}/{profiles.length}
+                    </span>
                 </div>
             </div>
 
-            {/* Summary bar */}
+            {/* ── Stats bar ── */}
             {profiles.length > 0 && (
                 <div style={{
-                    display: 'flex', gap: 16, padding: '6px 14px',
+                    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                    padding: '6px 14px',
                     background: 'var(--bg-card)',
                     borderBottom: '1px solid var(--border-subtle)',
                     flexShrink: 0,
                 }}>
-                    <div style={{ display: 'flex', flex: 1, gap: 16 }}>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--green-bright)', fontFamily: 'var(--font-mono)' }}>{profiles.length}</div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Peers</div>
+                    {[
+                        { val: profiles.length, label: 'NODES', color: 'var(--green-bright)' },
+                        { val: onlineCount, label: 'ONLINE', color: 'var(--blue-bright)' },
+                        { val: formatBytes(totalBytes), label: 'SYNCED', color: 'var(--amber-bright)' },
+                    ].map(s => (
+                        <div key={s.label} style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: s.color, fontFamily: 'var(--font-mono)' }}>{s.val}</div>
+                            <div style={{ fontSize: 8, color: 'var(--text-disabled)', letterSpacing: 0.8, textTransform: 'uppercase' }}>{s.label}</div>
                         </div>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--blue-bright)', fontFamily: 'var(--font-mono)' }}>
-                                {profiles.reduce((s, p) => s + (p.msgCount > 0 ? 1 : 0), 0)}
-                            </div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Active MBX</div>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--amber-bright)', fontFamily: 'var(--font-mono)' }}>{formatBytes(totalBytes)}</div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Data Synced</div>
-                        </div>
-                    </div>
+                    ))}
                 </div>
             )}
 
-            {/* Peer list */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {/* ── Column header ── */}
+            {profiles.length > 0 && (
+                <div style={{
+                    display: 'grid', gridTemplateColumns: '3px 1fr auto',
+                    gap: 10, padding: '4px 10px 2px 0',
+                    flexShrink: 0,
+                }}>
+                    <div />
+                    <div style={{ paddingLeft: 10, fontSize: 8, color: 'var(--text-disabled)', letterSpacing: 0.8 }}>NODE · STATUS</div>
+                    <div style={{ paddingRight: 10, fontSize: 8, color: 'var(--text-disabled)', letterSpacing: 0.8, textAlign: 'right' }}>SYNCED · AGO</div>
+                </div>
+            )}
+
+            {/* ── Peer list ── */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {!nodeActive ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-disabled)', fontSize: 12, padding: '30px 0' }}>
                         Start the node to sync GunDB peers
@@ -172,10 +194,10 @@ export function GunNetworkPanel({ nodeActive }: Props) {
                 ) : profiles.length === 0 ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-disabled)', fontSize: 12, padding: '30px 0' }}>
                         <div style={{ marginBottom: 8 }}>⏳</div>
-                        Discovering peers on GunDB mesh…
+                        Discovering nodes on mesh…
                     </div>
                 ) : profiles.map(peer => (
-                    <PeerCard key={peer.id} peer={peer} />
+                    <PeerRow key={peer.id} peer={peer} />
                 ))}
             </div>
         </div>
