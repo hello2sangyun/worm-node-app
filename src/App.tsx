@@ -7,6 +7,7 @@ import { SetupScreen, loadSavedKeypair } from './components/SetupScreen';
 import type { KeyPairBundle } from './components/SetupScreen';
 import { Header } from './components/Header';
 import { ActivityLog } from './components/ActivityLog';
+import { GunNetworkPanel } from './components/GunNetworkPanel';
 import { RewardTracker } from './components/RewardTracker';
 import { StorageStats } from './components/StorageStats';
 import { ChainStats } from './components/ChainStats';
@@ -158,8 +159,9 @@ export default function App() {
             {/* ── Content ──────────────────────────────────────── */}
             <div style={{ flex: 1, overflow: 'hidden', padding: 12 }}>
                 {tab === 'dashboard' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 10, height: '100%' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 280px', gap: 10, height: '100%' }}>
                         <ActivityLog logs={logs} nodeActive={nodeActive} />
+                        <GunNetworkPanel nodeActive={nodeActive} />
                         <RewardTracker
                             rewards={rewards}
                             totalEarned={stats.totalEarned}
