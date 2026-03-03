@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+
 import './index.css';
 import { useNodeState } from './hooks/useNodeState';
 import { useAutoUpdater } from './hooks/useAutoUpdater';
@@ -12,6 +13,7 @@ import { ChainStats } from './components/ChainStats';
 import { LaunchNodeModal } from './components/LaunchNodeModal';
 import { Icon } from './components/Icons';
 import type { NodeConfig } from './hooks/useNodeState';
+import { startGunPeer, stopGunPeer } from './utils/GunPeer';
 
 type Tab = 'dashboard' | 'storage' | 'chain' | 'settings';
 
@@ -56,11 +58,23 @@ export default function App() {
 
     function handleLogout() {
         stopNode();
+        stopGunPeer(); // GunDB 피어도 중지
         // Clear stored keypair
         ['worm_node_priv_jwk', 'worm_node_pub_jwk', 'worm_node_identity_name', 'worm_node_enc_priv_jwk'].forEach(k => localStorage.removeItem(k));
         saveConfig({ ...config, identity: '' });
         setAuthState(false);
     }
+
+    // Storage Node 활성 상태에 따라 GunDB 피어 시작/중지
+    useEffect(() => {
+        if (nodeActive && (config.relayEnabled || config.posEnabled)) {
+            startGunPeer((stats) => {
+                console.log(`[APP] GunPeer stats: ${stats.connectedPeers} peers connected`);
+            });
+        } else {
+            stopGunPeer();
+        }
+    }, [nodeActive, config.relayEnabled, config.posEnabled]);
 
     // Still checking saved keys
     if (authState === null) {
