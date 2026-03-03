@@ -98,9 +98,53 @@ export class NodeProviderClient {
             }
         });
 
+        // ── 서버가 GunDB 데이터를 요청할 때 (노드-퍼스트 구조) ────────────
+        this.socket.on('gun-request-data', ({ gunPath }: { gunPath: string }, callback: Function) => {
+            try {
+                // GunPeer.ts 의 gunInstance 를 lazy import 로 가져옴
+                import('./GunPeer').then(({ getGunInstance }) => {
+                    const gun = getGunInstance();
+                    if (!gun) {
+                        callback({ error: 'Gun not active on this node' });
+                        return;
+                    }
+
+                    // gunPath: 'worm-profiles-v9/stan:wormit' (슬래시로 경로 분리)
+                    const parts = gunPath.split('/');
+                    let node = gun;
+                    for (const part of parts) {
+                        node = node.get(part);
+                    }
+
+                    let responded = false;
+                    const timer = setTimeout(() => {
+                        if (!responded) {
+                            responded = true;
+                            callback({ error: 'Gun data not found within timeout' });
+                        }
+                    }, 5000);
+
+                    node.once((data: any) => {
+                        if (responded) return;
+                        responded = true;
+                        clearTimeout(timer);
+                        if (data !== null && data !== undefined) {
+                            this.onLog('🗄️', `Gun data served: ${gunPath.slice(0, 30)}… (node-first)`, 'success');
+                            callback({ data });
+                        } else {
+                            callback({ error: 'No data at this Gun path' });
+                        }
+                    });
+                }).catch(e => callback({ error: String(e) }));
+            } catch (e) {
+                callback({ error: String(e) });
+            }
+        });
+
         this.socket.on('wsn-provider-ack', ({ registered }: { registered: number }) => {
             this.onLog('✅', `Provider registered: ${registered} chunks announced to network`, 'info');
         });
+
 
         // 30분마다 CID 목록 갱신
         this.refreshTimer = setInterval(async () => {

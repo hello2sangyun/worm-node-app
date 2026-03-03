@@ -18,6 +18,11 @@ const BRIDGE_URL = import.meta.env.VITE_BRIDGE_URL || 'https://worm-protocol-bri
 let gunInstance: any = null;
 let isActive = false;
 
+/** 현재 Gun 인스턴스 반환 (NodeProviderClient에서 사용) */
+export function getGunInstance(): any {
+    return gunInstance;
+}
+
 export interface GunPeerStats {
     isActive: boolean;
     connectedPeers: number;
