@@ -66,6 +66,8 @@ export class NodeProviderClient {
 
         this.socket.on('connect', async () => {
             this.onLog('🔗', `Node Provider connected (${this.socket!.id?.slice(0, 8)}…)`, 'success');
+            // GunDB 참여 먼저 알림 (CID 없어도 Gun 데이터 서빙 가능)
+            this.socket!.emit('gun-announce-node', { identity: this.identity });
             await this.registerCIDs();
         });
 
