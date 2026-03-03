@@ -101,7 +101,7 @@ export class NodeProviderClient {
         });
 
         // ── 서버가 GunDB 데이터를 요청할 때 (노드-퍼스트 구조) ────────────
-        this.socket.on('gun-request-data', ({ gunPath }: { gunPath: string }, callback: Function) => {
+        this.socket.on('gun-request-data', ({ gunPath, isCollection }: { gunPath: string, isCollection?: boolean }, callback: Function) => {
             try {
                 // GunPeer.ts 의 gunInstance 를 lazy import 로 가져옴
                 import('./GunPeer').then(({ getGunInstance }) => {
@@ -126,22 +126,80 @@ export class NodeProviderClient {
                         }
                     }, 5000);
 
-                    node.once((data: any) => {
-                        if (responded) return;
-                        responded = true;
-                        clearTimeout(timer);
-                        if (data !== null && data !== undefined) {
-                            this.onLog('🗄️', `Gun data served: ${gunPath.slice(0, 30)}… (node-first)`, 'success');
-                            callback({ data });
-                        } else {
-                            callback({ error: 'No data at this Gun path' });
-                        }
-                    });
+                    if (isCollection) {
+                        // 콜렉션 (예: 메시지 목록) — .map().once()로 모든 하위 항목 수집
+                        const items: Record<string, any> = {};
+                        let collected = false;
+                        node.map().once((data: any, key: string) => {
+                            if (data && key !== '_') { items[key] = data; collected = true; }
+                        });
+                        setTimeout(() => {
+                            if (responded) return;
+                            responded = true;
+                            clearTimeout(timer);
+                            if (collected) {
+                                this.onLog('🗄️', `Gun collection served: ${gunPath.slice(0, 30)}… (${Object.keys(items).length} items)`, 'success');
+                                callback({ data: items });
+                            } else {
+                                callback({ error: 'No collection data' });
+                            }
+                        }, 3000);
+                    } else {
+                        node.once((data: any) => {
+                            if (responded) return;
+                            responded = true;
+                            clearTimeout(timer);
+                            if (data !== null && data !== undefined) {
+                                this.onLog('🗄️', `Gun data served: ${gunPath.slice(0, 30)}… (node-first)`, 'success');
+                                callback({ data });
+                            } else {
+                                callback({ error: 'No data at this Gun path' });
+                            }
+                        });
+                    }
                 }).catch(e => callback({ error: String(e) }));
             } catch (e) {
                 callback({ error: String(e) });
             }
         });
+
+        // ── 서버가 GunDB 쓰기를 요청할 때 (node-first write) ────────────────────
+        this.socket.on('gun-write-data', ({ gunPath, value }: { gunPath: string, value: any }, callback: Function) => {
+            try {
+                import('./GunPeer').then(({ getGunInstance }) => {
+                    const gun = getGunInstance();
+                    if (!gun) { callback({ ok: false, error: 'Gun not active' }); return; }
+
+                    const parts = gunPath.split('/');
+                    let node: any = gun;
+                    for (const part of parts) node = node.get(part);
+
+                    let handled = false;
+                    const timer = setTimeout(() => {
+                        if (!handled) {
+                            handled = true;
+                            this.onLog('⚠️', `Gun write timeout (local saved): ${gunPath.slice(0, 30)}…`, 'warn');
+                            callback({ ok: true, warn: 'timeout but locally stored' });
+                        }
+                    }, 4000);
+
+                    node.put(value, (ack: any) => {
+                        if (handled) return;
+                        handled = true;
+                        clearTimeout(timer);
+                        if (ack && ack.err) {
+                            callback({ ok: false, error: ack.err });
+                        } else {
+                            this.onLog('✏️', `Gun written: ${gunPath.slice(0, 40)}…`, 'success');
+                            callback({ ok: true });
+                        }
+                    });
+                }).catch(e => callback({ ok: false, error: String(e) }));
+            } catch (e) {
+                callback({ ok: false, error: String(e) });
+            }
+        });
+
 
         this.socket.on('wsn-provider-ack', ({ registered }: { registered: number }) => {
             this.onLog('✅', `Provider registered: ${registered} chunks announced to network`, 'info');
