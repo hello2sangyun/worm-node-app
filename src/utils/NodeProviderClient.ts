@@ -200,6 +200,43 @@ export class NodeProviderClient {
             }
         });
 
+        // ── GunDB PoS Challenge: 서버가 특정 gunPath의 데이터를 요청 → 해시 검증용 ──
+        this.socket.on('gun-pos-challenge', ({ gunPath }: { gunPath: string }, callback: Function) => {
+            try {
+                import('./GunPeer').then(({ getGunInstance }) => {
+                    const gun = getGunInstance();
+                    if (!gun) { callback({ error: 'Gun not active' }); return; }
+
+                    const parts = gunPath.split('/');
+                    let node: any = gun;
+                    for (const part of parts) node = node.get(part);
+
+                    let responded = false;
+                    const timer = setTimeout(() => {
+                        if (!responded) {
+                            responded = true;
+                            callback({ error: 'GunDB PoS read timeout' });
+                        }
+                    }, 5000);
+
+                    node.once((data: any) => {
+                        if (responded) return;
+                        responded = true;
+                        clearTimeout(timer);
+                        if (data !== null && data !== undefined) {
+                            this.onLog('🔐', `GunDB PoS proved: ${gunPath.slice(0, 30)}…`, 'success');
+                            callback({ data });
+                        } else {
+                            callback({ error: 'No data at gun path' });
+                        }
+                    });
+                }).catch(e => callback({ error: String(e) }));
+            } catch (e) {
+                callback({ error: String(e) });
+            }
+        });
+
+
 
         this.socket.on('wsn-provider-ack', ({ registered }: { registered: number }) => {
             this.onLog('✅', `Provider registered: ${registered} chunks announced to network`, 'info');
