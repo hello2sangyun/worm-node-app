@@ -58,6 +58,8 @@ function PeerRow({ peer }: { peer: PeerProfile }) {
             alignItems: 'center',
             gap: 10,
             padding: '6px 10px 6px 0',
+            minHeight: 52,
+            flexShrink: 0,
             borderRadius: 6,
             background: 'var(--bg-elevated)',
             border: '1px solid var(--border-subtle)',
@@ -186,7 +188,7 @@ export function GunNetworkPanel({ nodeActive }: Props) {
             )}
 
             {/* ── Peer list ── */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {!nodeActive ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-disabled)', fontSize: 12, padding: '30px 0' }}>
                         Start the node to sync GunDB peers
