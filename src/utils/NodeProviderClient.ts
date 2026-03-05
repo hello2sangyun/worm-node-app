@@ -124,7 +124,7 @@ export class NodeProviderClient {
                             responded = true;
                             callback({ error: 'Gun data not found within timeout' });
                         }
-                    }, 5000);
+                    }, 8000);
 
                     if (isCollection) {
                         // 콜렉션 (예: 메시지 목록) — .map().once()로 모든 하위 항목 수집
@@ -143,7 +143,7 @@ export class NodeProviderClient {
                             } else {
                                 callback({ error: 'No collection data' });
                             }
-                        }, 3000);
+                        }, 4000);
                     } else {
                         node.once((data: any) => {
                             if (responded) return;
@@ -217,7 +217,7 @@ export class NodeProviderClient {
                             responded = true;
                             callback({ error: 'GunDB PoS read timeout' });
                         }
-                    }, 5000);
+                    }, 8000);
 
                     node.once((data: any) => {
                         if (responded) return;

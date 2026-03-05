@@ -185,6 +185,7 @@ export async function startGunPeer(onStats?: (stats: GunPeerStats) => void): Pro
         gunInstance.get('worm-messages-v9').map().once(() => { });
         gunInstance.get('worm-wns-v9').map().once(() => { });
         gunInstance.get('worm-chain-v1').map().once(() => { });
+        gunInstance.get('worm-safemail-v1').map().once(() => { }); // SafeMail sync
     };
 
     setTimeout(sync, 3000);
