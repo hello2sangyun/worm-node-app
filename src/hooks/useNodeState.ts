@@ -286,7 +286,7 @@ export function useNodeState() {
         addLog('❌', 'Server returned non-OK response', 'error');
         if (config.autoReconnect && nodeActive) scheduleReconnect();
         return false;
-    }, [config.autoReconnect, nodeActive, addLog]);
+    }, [config.autoReconnect, nodeActive, addLog, testConnection]);
 
     const scheduleReconnect = useCallback(() => {
         if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -299,10 +299,29 @@ export function useNodeState() {
         if (!config.identity || !config.relayEnabled || connStatusRef.current !== 'connected') return;
         addLog('📡', 'Requesting relay reward...', 'info');
         try {
+            // [PHASE-4A] Sign the request with ECDSA private key
+            const timestamp = Date.now();
+            const payload = `${config.identity}:${timestamp}`;
+            let signature: string | undefined;
+
+            if (keypairRef.current?.signingPriv) {
+                try {
+                    const dataBytes = new TextEncoder().encode(payload);
+                    const sigBytes = await crypto.subtle.sign(
+                        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+                        keypairRef.current.signingPriv,
+                        dataBytes
+                    );
+                    signature = btoa(String.fromCharCode(...new Uint8Array(sigBytes)));
+                } catch {
+                    addLog('⚠️', 'Signature failed, sending unsigned', 'warn');
+                }
+            }
+
             const res = await fetch(`${SERVER_URL}/api/relay-reward`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ identity: config.identity })
+                body: JSON.stringify({ identity: config.identity, timestamp, signature })
             });
             const data = await res.json();
             if (data.success && data.rewarded) {
@@ -322,6 +341,7 @@ export function useNodeState() {
             if (config.autoReconnect) scheduleReconnect();
         }
     }, [config.identity, config.relayEnabled, config.autoReconnect, connStatus, addLog, fetchBalance, scheduleReconnect]);
+
 
     // ── Local chunk cache (Native Filesystem via Tauri) ───────────────
     // 청크는 실제 파일로 저장: ~/Library/Application Support/WORM Node/chunks/
