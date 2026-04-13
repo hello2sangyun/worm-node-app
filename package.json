@@ -1,7 +1,8 @@
 {
   "name": "worm-node-app",
   "private": true,
-  "version": "1.0.10",
+  "version": "1.0.20",
+
   "type": "module",
   "scripts": {
     "dev": "vite",

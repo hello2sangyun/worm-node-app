@@ -256,12 +256,12 @@ export function useNodeState() {
     }, [config.identity, nodeActive, fetchBalance]);
 
     // ── Test server connection ───────────────────────────────────────
+    const scheduleReconnectRef = useRef<(() => void) | null>(null);
+
     const testConnection = useCallback(async (): Promise<boolean> => {
         setConnStatus('connecting');
         addLog('🔌', 'Connecting to WORM Protocol server...', 'info');
         try {
-            // [COMPAT] AbortSignal.timeout() requires Safari 16+ (not supported on macOS Catalina).
-            // Use AbortController instead for maximum compatibility.
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 8000);
             let res: Response;
@@ -279,20 +279,24 @@ export function useNodeState() {
             setConnStatus('error');
             const msg = e?.name === 'AbortError' ? 'Connection timed out (8s)' : (e?.message || 'Unknown error');
             addLog('❌', `Server connection failed: ${msg}`, 'error');
-            if (config.autoReconnect && nodeActive) scheduleReconnect();
+            if (config.autoReconnect && nodeActive) scheduleReconnectRef.current?.();
             return false;
         }
         setConnStatus('error');
         addLog('❌', 'Server returned non-OK response', 'error');
-        if (config.autoReconnect && nodeActive) scheduleReconnect();
+        if (config.autoReconnect && nodeActive) scheduleReconnectRef.current?.();
         return false;
-    }, [config.autoReconnect, nodeActive, addLog, testConnection]);
+    }, [config.autoReconnect, nodeActive, addLog]);
 
     const scheduleReconnect = useCallback(() => {
         if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
         addLog('🔄', 'Auto-reconnect in 15s...', 'warn');
         reconnectTimerRef.current = setTimeout(() => testConnection(), 15000);
     }, [addLog, testConnection]);
+
+    // Keep ref in sync so testConnection can call it without circular deps
+    scheduleReconnectRef.current = scheduleReconnect;
+
 
     // ── Relay reward loop (every 5 min + jitter) ─────────────────────
     const doRelayReward = useCallback(async () => {
