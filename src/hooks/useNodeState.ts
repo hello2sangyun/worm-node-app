@@ -260,15 +260,30 @@ export function useNodeState() {
         setConnStatus('connecting');
         addLog('🔌', 'Connecting to WORM Protocol server...', 'info');
         try {
-            const res = await fetch(`${SERVER_URL}/health`, { signal: AbortSignal.timeout(8000) });
+            // [COMPAT] AbortSignal.timeout() requires Safari 16+ (not supported on macOS Catalina).
+            // Use AbortController instead for maximum compatibility.
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 8000);
+            let res: Response;
+            try {
+                res = await fetch(`${SERVER_URL}/health`, { signal: controller.signal });
+            } finally {
+                clearTimeout(timer);
+            }
             if (res.ok) {
                 setConnStatus('connected');
                 addLog('✅', `Connected to ${SERVER_URL}`, 'success');
                 return true;
             }
-        } catch {/* */ }
+        } catch (e: any) {
+            setConnStatus('error');
+            const msg = e?.name === 'AbortError' ? 'Connection timed out (8s)' : (e?.message || 'Unknown error');
+            addLog('❌', `Server connection failed: ${msg}`, 'error');
+            if (config.autoReconnect && nodeActive) scheduleReconnect();
+            return false;
+        }
         setConnStatus('error');
-        addLog('❌', 'Server connection failed', 'error');
+        addLog('❌', 'Server returned non-OK response', 'error');
         if (config.autoReconnect && nodeActive) scheduleReconnect();
         return false;
     }, [config.autoReconnect, nodeActive, addLog]);

@@ -100,9 +100,12 @@ export function useNotifications({ identity, enabled }: UseNotificationsOptions)
                 // 3. REST 폴링 폴백: 30초마다 새 메일 수 확인
                 const pollNewMail = async () => {
                     try {
-                        const res = await fetch(`${SERVER_URL}/api/drop/check/${encodeURIComponent(identity)}`, {
-                            signal: AbortSignal.timeout(8000)
-                        });
+                        // [COMPAT] AbortSignal.timeout() not supported on macOS Catalina (Safari 15)
+                        const ctrl = new AbortController();
+                        const t = setTimeout(() => ctrl.abort(), 8000);
+                        let res: Response;
+                        try { res = await fetch(`${SERVER_URL}/api/drop/check/${encodeURIComponent(identity)}`, { signal: ctrl.signal }); }
+                        finally { clearTimeout(t); }
                         if (!res.ok) return;
                         const data = await res.json();
                         if (data.newCount && data.newCount > 0) {
